@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zone RCA Dashboard — Degrowing Zones</title>
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: #171e2e;
+    --panel-2: #1d2740;
+    --border: #2a3550;
+    --text: #e8edf7;
+    --muted: #8b97b0;
+    --accent: #4f8cff;
+    --good: #2ecc8f;
+    --bad: #ff5f6b;
+    --warn: #ffb020;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 18px; }
+  .controls .spacer { flex: 1; }
+  .seg { display: inline-flex; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    background: transparent; color: var(--muted); border: none; padding: 8px 16px;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s;
+  }
+  .seg button.active { background: var(--accent); color: #fff; }
+  select, input {
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; font-size: 13px;
+  }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 18px; }
+  .panel h2 { font-size: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .panel h2 .tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: var(--panel-2); color: var(--accent); border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; padding: 8px 10px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  tr.main-row { cursor: pointer; }
+  tr.main-row:hover { background: var(--panel-2); }
+  tr.main-row.expanded { background: var(--panel-2); }
+  .caret { display: inline-block; transition: transform .15s; color: var(--muted); margin-right: 6px; font-size: 10px; }
+  tr.main-row.expanded .caret { transform: rotate(90deg); color: var(--accent); }
+  .delta-pos { color: var(--good); font-weight: 600; }
+  .delta-neg { color: var(--bad); font-weight: 600; }
+  .delta-neu { color: var(--muted); }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+  .pill-degrow { background: rgba(255,95,107,.15); color: var(--bad); border: 1px solid rgba(255,95,107,.3); }
+  .pill-flat { background: rgba(255,176,32,.12); color: var(--warn); border: 1px solid rgba(255,176,32,.3); }
+  .pill-grow { background: rgba(46,204,143,.12); color: var(--good); border: 1px solid rgba(46,204,143,.3); }
+  .zone-detail-row td { background: #141b2b; padding: 0; }
+  .zone-detail-inner { padding: 14px 18px 16px 42px; }
+  .zone-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .mini-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  .mini-card h4 { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+  .mini-table td, .mini-table th { padding: 4px 8px; font-size: 12px; border-bottom: 1px solid var(--border); }
+  .mini-table tr:last-child td { border-bottom: none; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+  .zone-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+  .zone-card h3 { font-size: 14px; margin-bottom: 2px; }
+  .zone-card .city { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+  .kpis { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .kpi { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 12px; }
+  .kpi b { display: block; font-size: 15px; margin-top: 2px; }
+  .chart-wrap { margin-top: 8px; }
+  .bar-row { display: grid; grid-template-columns: 110px 1fr 60px; gap: 8px; align-items: center; font-size: 12px; margin-bottom: 5px; }
+  .bar-track { background: var(--panel-2); border-radius: 6px; height: 16px; overflow: hidden; position: relative; }
+  .bar-fill { height: 100%; border-radius: 6px; background: var(--accent); }
+  .bar-fill.neg { background: var(--bad); }
+  .bar-fill.pos { background: var(--good); }
+  .hidden { display: none !important; }
+  .note { color: var(--muted); font-size: 12px; }
+  .expand-hint { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 8px; }
+  @media (max-width: 720px) { body { padding: 10px; } .zone-detail-inner { padding-left: 18px; } }
+</style>
+</head>
+<body>
+
+<h1>Zone RCA Dashboard — Degrowing Zones</h1>
+<div class="sub">Zone-level order OPD RCA · city &amp; zone comparison · WOW / MOM trends · L4W / WTD / MTD views</div>
+
+<div class="controls">
+  <div class="seg" id="viewSeg">
+    <button data-view="summary" class="active">Summary comparison</button>
+    <button data-view="wow">WOW trend</button>
+    <button data-view="mom">MOM trend</button>
+    <button data-view="l4w">L4W</button>
+    <button data-view="wtd">WTD</button>
+    <button data-view="mtd">MTD</button>
+  </div>
+  <select id="cityFilter"><option value="">All cities</option></select>
+  <select id="statusFilter">
+    <option value="">All zones</option>
+    <option value="degrow">Degrowing only</option>
+    <option value="flat">Flat only</option>
+    <option value="grow">Growing only</option>
+  </select>
+  <div class="spacer"></div>
+  <input type="text" id="search" placeholder="Search zone / city…">
+</div>
+
+<!-- ============ SUMMARY COMPARISON (expandable rows) ============ -->
+<div class="panel" id="view-summary">
+  <h2>Summary comparison <span class="tag">click a row to expand a zone in place</span></h2>
+  <table id="summaryTable">
+    <thead>
+      <tr>
+        <th>Zone</th><th>City</th><th>OPD (latest)</th><th>vs prior period</th>
+        <th>Zone vs city</th><th>Top RCA driver</th><th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="summaryBody"></tbody>
+  </table>
+  <div class="note" style="margin-top:8px">Each row expands in place — zone detail (OPD trend, drivers, zone-vs-city, RCA buckets) without scrolling through zone cards.</div>
+</div>
+
+<!-- ============ WOW TREND ============ -->
+<div class="panel hidden" id="view-wow">
+  <h2>WOW trend <span class="tag">last 6 weeks</span></h2>
+  <div id="wowContent"></div>
+</div>
+
+<!-- ============ MOM TREND (new, comparable to WOW) ============ -->
+<div class="panel hidden" id="view-mom">
+  <h2>MOM trend <span class="tag">last 6 months · comparable to WOW trend</span></h2>
+  <div id="momContent"></div>
+</div>
+
+<!-- ============ L4W / WTD / MTD (zone OPD + zone-vs-city always visible) ============ -->
+<div class="panel hidden" id="view-l4w">
+  <h2>Last 4 weeks <span class="tag">zone OPD &amp; zone-vs-city</span></h2>
+  <div id="l4wContent"></div>
+</div>
+<div class="panel hidden" id="view-wtd">
+  <h2>Week to date <span class="tag">zone OPD &amp; zone-vs-city</span></h2>
+  <div id="wtdContent"></div>
+</div>
+<div class="panel hidden" id="view-mtd">
+  <h2>Month to date <span class="tag">zone OPD &amp; zone-vs-city</span></h2>
+  <div id="mtdContent"></div>
+</div>
+
+<script>
+// ============================= DATA =============================
+// Embedded sample data (replace/refresh via the weekly RCA pipeline).
+// weekKey: ISO week label; monthKey: month label.
+const WEEKS  = ['W-5','W-4','W-3','W-2','W-1 (latest)'];
+const MONTHS = ['M-5','M-4','M-3','M-2','M-1 (latest)'];
+
+const DATA = [
+  { zone: 'Koramangala', city: 'Bengaluru',
+    weeklyOpd:  [1180, 1140, 1095, 1040, 985], monthlyOpd: [5100, 4950, 4700, 4460, 4210],
+    rca: [ ['Supply gap (DE shortfall)', 32], ['Restaurant closures', 24], ['Rain disruption', 18], ['Pricing/discount gap', 14], ['Other', 12] ] },
+  { zone: 'Whitefield', city: 'Bengaluru',
+    weeklyOpd:  [890, 905, 918, 930, 942], monthlyOpd: [3820, 3900, 3985, 4040, 4110],
+    rca: [ ['New restaurant adds', 38], ['DE supply improvement', 27], ['Ridge pricing win', 18], ['Other', 17] ] },
+  { zone: 'Gachibowli', city: 'Hyderabad',
+    weeklyOpd:  [760, 742, 730, 718, 690], monthlyOpd: [3300, 3240, 3150, 3060, 2950],
+    rca: [ ['Supply gap (DE shortfall)', 41], ['App outage incidents', 20], ['Discount gap vs peers', 19], ['Other', 20] ] },
+  { zone: 'Madhapur', city: 'Hyderabad',
+    weeklyOpd:  [1020, 1028, 1035, 1042, 1050], monthlyOpd: [4400, 4450, 4490, 4530, 4580],
+    rca: [ ['Corporate demand pickup', 35], ['Supply improvement', 25], ['Other', 40] ] },
+  { zone: 'Banjara Hills', city: 'Hyderabad',
+    weeklyOpd:  [640, 636, 633, 628, 625], monthlyOpd: [2760, 2750, 2735, 2710, 2690],
+    rca: [ ['Flat demand (weekday softness)', 45], ['Other', 55] ] },
+  { zone: 'Vizag-Central', city: 'Visakhapatnam',
+    weeklyOpd:  [540, 528, 510, 490, 468], monthlyOpd: [2320, 2270, 2190, 2090, 1990],
+    rca: [ ['Restaurant closures', 36], ['Supply gap (DE shortfall)', 28], ['Competitor aggression', 16], ['Other', 20] ] },
+  { zone: 'Vijayawada-One-Town', city: 'Vijayawada',
+    weeklyOpd:  [410, 405, 398, 390, 381], monthlyOpd: [1750, 1730, 1700, 1665, 1620],
+    rca: [ ['Supply gap (DE shortfall)', 39], ['Restaurant closures', 22], ['Other', 39] ] },
+  { zone: 'Hyd-Old-City', city: 'Hyderabad',
+    weeklyOpd:  [705, 698, 692, 685, 680], monthlyOpd: [3010, 2990, 2960, 2920, 2880],
+    rca: [ ['Rain disruption', 30], ['Supply gap (DE shortfall)', 26], ['Other', 44] ] },
+];
+
+// City aggregates derived from zone data (city OPD = sum of its zones).
+const CITY = {};
+DATA.forEach(z => {
+  const c = CITY[z.city] || (CITY[z.city] = { weekly: WEEKS.map(()=>0), monthly: MONTHS.map(()=>0) });
+  z.weeklyOpd.forEach((v,i)=> c.weekly[i]+=v);
+  z.monthlyOpd.forEach((v,i)=> c.monthly[i]+=v);
+});
+
+// ============================= HELPERS =============================
+const $ = s => document.querySelector(s);
+const pct = (a,b) => b ? ((a-b)/b*100) : 0;
+const fmt = v => v>=1000 ? (v/1000).toFixed(2)+'k' : String(Math.round(v));
+const fmtPct = p => (p>0?'+':'') + p.toFixed(1) + '%';
+const clsDelta = p => p < -1 ? 'delta-neg' : (p > 1 ? 'delta-pos' : 'delta-neu');
+const clsPill = p => p < -1 ? 'pill-degrow' : (p > 1 ? 'pill-grow' : 'pill-flat');
+const labelFor = p => p < -1 ? 'DEGROWING' : (p > 1 ? 'GROWING' : 'FLAT');
+
+function wowDelta(z) { return pct(z.weeklyOpd[4], z.weeklyOpd[3]); }
+function momDelta(z) { return pct(z.monthlyOpd[4], z.monthlyOpd[3]); }
+function l4wDelta(z) { return pct(z.weeklyOpd[4], z.weeklyOpd[0]); }
+function wtdMtdDelta(z) { return pct(z.weeklyOpd[4], z.weeklyOpd[3]); }
+
+function cityVs(zoneVal, cityVal, zoneCount) {
+  // Zone share vs even-share expectation across its city's zones.
+  const even = cityVal / zoneCount;
+  return pct(zoneVal, even);
+}
+
+function filtered() {
+  const city = $('#cityFilter').value;
+  const status = $('#statusFilter').value;
+  const q = $('#search').value.trim().toLowerCase();
+  return DATA.filter(z => {
+    if (city && z.city !== city) return false;
+    if (status && labelFor(wowDelta(z)).toLowerCase() !== (status==='degrow'?'degrowing':status==='grow'?'growing':'flat')) return false;
+    if (q && !(z.zone.toLowerCase().includes(q) || z.city.toLowerCase().includes(q))) return false;
+    return true;
+  });
+}
+
+// ============================= SUMMARY VIEW (expandable rows) =============================
+function renderSummary() {
+  const rows = filtered();
+  const body = $('#summaryBody');
+  body.innerHTML = '';
+  rows.forEach((z, idx) => {
+    const zonesInCity = DATA.filter(d => d.city === z.city).length;
+    const cityLatest = CITY[z.city].weekly[4];
+    const vsCity = cityVs(z.weeklyOpd[4], cityLatest, zonesInCity);
+    const wow = wowDelta(z), mom = momDelta(z);
+
+    const main = document.createElement('tr');
+    main.className = 'main-row';
+    main.dataset.idx = idx;
+    main.innerHTML = `
+      <td><span class="caret">▶</span><b>${z.zone}</b></td>
+      <td>${z.city}</td>
+      <td>${fmt(z.weeklyOpd[4])}</td>
+      <td class="${clsDelta(wow)}">${fmtPct(wow)} <span class="note">WoW</span></td>
+      <td class="${clsDelta(vsCity)}">${fmtPct(vsCity)} <span class="note">vs city</span></td>
+      <td>${z.rca[0][0]}</td>
+      <td><span class="pill ${clsPill(wow)}">${labelFor(wow)}</span></td>`;
+
+    const detail = document.createElement('tr');
+    detail.className = 'zone-detail-row hidden';
+    detail.dataset.target = idx;
+    detail.innerHTML = `<td colspan="7"><div class="zone-detail-inner">${zoneDetailHTML(z, {wow, mom, vsCity})}</div></td>`;
+
+    main.addEventListener('click', () => {
+      const isExpanded = main.classList.toggle('expanded');
+      detail.classList.toggle('hidden', !isExpanded);
+    });
+
+    body.appendChild(main);
+    body.appendChild(detail);
+  });
+  if (!rows.length) body.innerHTML = '<tr><td colspan="7" class="note" style="padding:20px">No zones match the current filters.</td></tr>';
+}
+
+function zoneDetailHTML(z, d) {
+  const maxW = Math.max(...z.weeklyOpd), maxM = Math.max(...z.monthlyOpd);
+  const maxR = Math.max(...z.rca.map(r=>r[1]));
+  return `
+  <div class="zone-detail-grid">
+    <div class="mini-card">
+      <h4>WOW OPD trend (last 5 weeks)</h4>
+      ${z.weeklyOpd.map((v,i)=>`
+        <div class="bar-row"><span>${WEEKS[i]}</span>
+          <div class="bar-track"><div class="bar-fill ${i===4 && wowDelta(z)<0 ? 'neg':''}" style="width:${(v/maxW*100).toFixed(0)}%"></div></div>
+          <span>${fmt(v)}</span></div>`).join('')}
+      <div style="margin-top:6px" class="${clsDelta(d.wow)}">Latest WoW: ${fmtPct(d.wow)}</div>
+    </div>
+    <div class="mini-card">
+      <h4>MOM OPD trend (last 5 months)</h4>
+      ${z.monthlyOpd.map((v,i)=>`
+        <div class="bar-row"><span>${MONTHS[i]}</span>
+          <div class="bar-track"><div class="bar-fill ${i===4 && momDelta(z)<0 ? 'neg':''}" style="width:${(v/maxM*100).toFixed(0)}%"></div></div>
+          <span>${fmt(v)}</span></div>`).join('')}
+      <div style="margin-top:6px" class="${clsDelta(d.mom)}">Latest MoM: ${fmtPct(d.mom)}</div>
+    </div>
+    <div class="mini-card">
+      <h4>Zone vs city</h4>
+      <table class="mini-table">
+        <tr><th></th><th>Zone</th><th>City</th></tr>
+        <tr><td>OPD (latest wk)</td><td>${fmt(z.weeklyOpd[4])}</td><td>${fmt(CITY[z.city].weekly[4])}</td></tr>
+        <tr><td>WoW</td><td class="${clsDelta(wowDelta(z))}">${fmtPct(wowDelta(z))}</td><td class="${clsDelta(pct(CITY[z.city].weekly[4],CITY[z.city].weekly[3]))}">${fmtPct(pct(CITY[z.city].weekly[4],CITY[z.city].weekly[3]))}</td></tr>
+        <tr><td>MoM</td><td class="${clsDelta(momDelta(z))}">${fmtPct(momDelta(z))}</td><td class="${clsDelta(pct(CITY[z.city].monthly[4],CITY[z.city].monthly[3]))}">${fmtPct(pct(CITY[z.city].monthly[4],CITY[z.city].monthly[3]))}</td></tr>
+      </table>
+      <div style="margin-top:8px">Zone vs city share: <b class="${clsDelta(d.vsCity)}">${fmtPct(d.vsCity)}</b> <span class="note">(vs even-share expectation across ${DATA.filter(x=>x.city===z.city).length} zones)</span></div>
+    </div>
+    <div class="mini-card">
+      <h4>Top RCA buckets</h4>
+      ${z.rca.map(r=>`
+        <div class="bar-row"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r[0]}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${(r[1]/maxR*100).toFixed(0)}%"></div></div>
+          <span>${r[1]}%</span></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ============================= TREND VIEWS (WOW & MOM, comparable layout) =============================
+function renderTrend(kind) {
+  // kind: 'wow' | 'mom' — identical layout, weekly or monthly series.
+  const el = $(kind === 'wow' ? '#wowContent' : '#momContent');
+  const rows = filtered();
+  const labels = kind === 'wow' ? WEEKS : MONTHS;
+  const get = z => kind === 'wow' ? z.weeklyOpd : z.monthlyOpd;
+  const delta = z => kind === 'wow' ? wowDelta(z) : momDelta(z);
+  const priorLabel = kind === 'wow' ? 'prior week' : 'prior month';
+
+  if (!rows.length) { el.innerHTML = '<div class="note">No zones match the current filters.</div>'; return; }
+
+  let html = `<table><thead><tr>
+    <th>Zone</th><th>City</th>
+    ${labels.map(l=>`<th>${l}</th>`).join('')}
+    <th>vs ${priorLabel}</th><th>Status</th></tr></thead><tbody>`;
+  rows.forEach(z => {
+    const series = get(z);
+    const max = Math.max(...series);
+    const d = delta(z);
+    html += `<tr>
+      <td><b>${z.zone}</b></td><td>${z.city}</td>
+      ${series.map((v,i)=>`<td>${fmt(v)}<div class="bar-track" style="margin-top:4px;height:6px;width:70px"><div class="bar-fill ${i===4 && d<0 ? 'neg':''}" style="width:${(v/max*100).toFixed(0)}%"></div></div></td>`).join('')}
+      <td class="${clsDelta(d)}">${fmtPct(d)}</td>
+      <td><span class="pill ${clsPill(d)}">${labelFor(d)}</span></td></tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// ============================= L4W / WTD / MTD VIEWS =============================
+function renderPeriod(view) {
+  // view: 'l4w' | 'wtd' | 'mtd' — zone OPD + zone-vs-city comparison stay visible in all three.
+  const el = $(`#${view}Content`);
+  const rows = filtered();
+  if (!rows.length) { el.innerHTML = '<div class="note">No zones match the current filters.</div>'; return; }
+
+  const title = { l4w: 'Last 4 weeks', wtd: 'Week to date', mtd: 'Month to date' }[view];
+  const delta = { l4w: l4wDelta, wtd: wtdMtdDelta, mtd: z => momDelta(z) }[view];
+
+  // Table: zone OPD + zone-vs-city, always present.
+  let html = `<table><thead><tr>
+    <th>Zone</th><th>City</th><th>Zone OPD (${title})</th><th>Δ vs base</th>
+    <th>City OPD</th><th>Zone share of city</th><th>Zone vs city</th><th>Top RCA driver</th></tr></thead><tbody>`;
+  rows.forEach(z => {
+    const zonesInCity = DATA.filter(d => d.city === z.city).length;
+    const cityLatest = CITY[z.city].weekly[4];
+    const share = z.weeklyOpd[4] / cityLatest * 100;
+    const vsCity = cityVs(z.weeklyOpd[4], cityLatest, zonesInCity);
+    const d = delta(z);
+    html += `<tr>
+      <td><b>${z.zone}</b></td><td>${z.city}</td>
+      <td>${fmt(z.weeklyOpd[4])}</td>
+      <td class="${clsDelta(d)}">${fmtPct(d)}</td>
+      <td>${fmt(cityLatest)}</td>
+      <td>${share.toFixed(1)}%</td>
+      <td class="${clsDelta(vsCity)}">${fmtPct(vsCity)}</td>
+      <td>${z.rca[0][0]}</td></tr>`;
+  });
+  html += '</tbody></table>';
+
+  // Zone cards below (same detail blocks as the expandable summary rows).
+  html += `<h2 style="font-size:14px;margin:18px 0 10px">Zone cards — ${title}</h2><div class="cards">`;
+  rows.forEach(z => {
+    const d = delta(z);
+    const zonesInCity = DATA.filter(x => x.city === z.city).length;
+    const vsCity = cityVs(z.weeklyOpd[4], CITY[z.city].weekly[4], zonesInCity);
+    html += `<div class="zone-card">
+      <h3>${z.zone} <span class="pill ${clsPill(d)}" style="float:right">${labelFor(d)}</span></h3>
+      <div class="city">${z.city}</div>
+      <div class="kpis">
+        <div class="kpi">Zone OPD<b>${fmt(z.weeklyOpd[4])}</b></div>
+        <div class="kpi">Δ ${title}<b class="${clsDelta(d)}">${fmtPct(d)}</b></div>
+        <div class="kpi">vs city<b class="${clsDelta(vsCity)}">${fmtPct(vsCity)}</b></div>
+      </div>
+      ${zoneDetailHTML(z, {wow: wowDelta(z), mom: momDelta(z), vsCity})}
+    </div>`;
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ============================= WIRING =============================
+function initFilters() {
+  const cities = [...new Set(DATA.map(z=>z.city))].sort();
+  cities.forEach(c => {
+    const o = document.createElement('option'); o.value = c; o.textContent = c;
+    $('#cityFilter').appendChild(o);
+  });
+}
+function render() {
+  renderSummary();
+  renderTrend('wow');
+  renderTrend('mom');
+  renderPeriod('l4w');
+  renderPeriod('wtd');
+  renderPeriod('mtd');
+}
+initFilters();
+render();
+$('#viewSeg').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  document.querySelectorAll('#viewSeg button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
+  $(`#view-${btn.dataset.view}`).classList.remove('hidden');
+});
+['#cityFilter','#statusFilter'].forEach(s => $(s).addEventListener('change', render));
+$('#search').addEventListener('input', render);
+</script>
+</body>
+</html>
